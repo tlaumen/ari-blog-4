@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from dataclasses import dataclass
 from io import BytesIO
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,13 @@ if TYPE_CHECKING:
     from steps.laad_geometrie import Geometrie
     from steps.voer_grondprofiel_in import Grondprofiel
     from steps.voer_parameters_in import MateriaalParameters
+
+
+@dataclass(frozen=True)
+class _NormalizedLayer:
+    bovenkant: float
+    onderkant: float
+    materiaal: str
 
 
 def _to_sorted_ground_coords(geometrie: Geometrie) -> list[tuple[float, float]]:
@@ -124,6 +132,30 @@ def _build_layer_top_boundary(
     return top_boundary
 
 
+def _normalize_layers_to_geometry_top(lagen: list, z_max: float) -> list[_NormalizedLayer]:
+    normalized = [
+        _NormalizedLayer(
+            bovenkant=float(laag.bovenkant),
+            onderkant=float(laag.onderkant),
+            materiaal=str(laag.materiaal).strip(),
+        )
+        for laag in lagen
+        if float(laag.onderkant) <= z_max
+    ]
+
+    if not normalized:
+        raise ValueError("Geen grondlagen over binnen de geometrie na afkappen op z_max.")
+
+    first = normalized[0]
+    normalized[0] = _NormalizedLayer(
+        bovenkant=float(z_max),
+        onderkant=first.onderkant,
+        materiaal=first.materiaal,
+    )
+
+    return normalized
+
+
 def _build_materials_and_map(materiaal_parameters: MateriaalParameters) -> tuple[list[dict], dict[str, int]]:
     materials: list[dict] = []
     mat_id_by_name: dict[str, int] = {}
@@ -214,8 +246,10 @@ def build_slope_data(
     H = max(z_max - z_min, 1.0)
     L = x_max - x_min
 
+    lagen = _normalize_layers_to_geometry_top(grondprofiel.lagen, z_max)
+
     profile_lines: list[dict] = []
-    for i, laag in enumerate(grondprofiel.lagen):
+    for i, laag in enumerate(lagen):
         mat_naam = laag.materiaal.strip()
         if mat_naam not in mat_id_by_name:
             raise ValueError(f"Geen parameters gevonden voor materiaal '{mat_naam}'.")
