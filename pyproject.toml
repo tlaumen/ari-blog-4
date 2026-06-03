@@ -1,0 +1,11 @@
+[project]
+name = "blog-4"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.105.2",
+    "ari-core>=0.1.0b4",
+    "openai>=2.38.0",
+    "tabulate>=0.10.0",
+    "xslope>=0.1.49",
+]
